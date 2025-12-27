@@ -7,8 +7,8 @@ import gc, sys
 from fpioa_manager import fm
 
 input_size = (224, 224)
-labels = ['1', '3', '7', 'c', 'r', 't', '2', '4', '5', '6', '8']
-anchors = [1.16, 1.0, 1.31, 1.88, 1.88, 2.41, 1.56, 2.19, 1.69, 1.66]
+labels = ['4', '5', '7', 'c', 't', '1', '2', '3', '6', '8', 'r']
+anchors = [1.59, 2.22, 1.22, 1.75, 1.53, 1.59, 1.41, 2.0, 1.88, 2.38]
 
 def lcd_show_except(e):
     import uio
@@ -36,35 +36,37 @@ class Comm:
             '6':(0x06, 0x00),
             '7':(0x07, 0x00),
             '8':(0x08, 0x00),
+
         }
 
     def send_detect_result(self, objects, labels):
         if not objects:
             return
-        
+
         for obj in objects:
-        
+            # 获取识别到的标签名称
             idx = obj.classid()
             if idx < len(labels):
                 label_name = labels[idx]
             else:
                 continue
 
-            
-            # 如果标签不在表里，发送 (0x00, 0x00)
-            data_values = self.class_map.get(label_name, (0x00, 0x00))  
+            # 查表获取对应的 数字值 和 图形值
+            # 如果标签不在表里，默认发送 (0x00, 0x00)
+            data_values = self.class_map.get(label_name, (0x00, 0x00))
 
             num_val = data_values[0]   # 对应第二个字节 (数字)
             shape_val = data_values[1] # 对应第三个字节 (图形)
 
-            # 帧头0xAA, 数字, 图形, 帧尾0x0D
+            # [帧头0xAA, 数字, 图形, 帧尾0x0D]
             packet = bytearray([0xAA, num_val, shape_val, 0x0D])
 
             # 调试打印
-            #print("put:", [hex(x) for x in packet])
-            
+            #print("UART DEBUG:", [hex(x) for x in packet])
+
             # 发送
             self.uart.write(packet)
+            #uart.write(packet)
 
 '''
     def send_detect_result(self, objects, labels):
@@ -81,9 +83,10 @@ class Comm:
 '''
 
 def init_uart():
-    fm.register(3, fm.fpioa.UART1_TX, force=True)
-    fm.register(2, fm.fpioa.UART1_RX, force=True)
-    uart = UART(UART.UART1, 115200, 8, 0, 1, timeout=1000, read_buf_len=256)
+    fm.register(10, fm.fpioa.UART1_TX, force=True)
+    fm.register(11, fm.fpioa.UART1_RX, force=True)
+
+    uart = UART(UART.UART1, 115200, 8, 0, 0, timeout=1000, read_buf_len=256)
     return uart
 
 def main(anchors, labels = None, model_addr="/sd/m.kmodel", sensor_window=input_size, lcd_rotation=0, sensor_hmirror=False, sensor_vflip=False):
@@ -122,7 +125,7 @@ def main(anchors, labels = None, model_addr="/sd/m.kmodel", sensor_window=input_
     try:
         task = None
         task = kpu.load(model_addr)
-        kpu.init_yolo2(task, 0.6, 0.5, 5, anchors) # threshold:[0,1], nms_value: [0, 1]
+        kpu.init_yolo2(task, 0.5, 0.3, 5, anchors) # threshold:[0,1], nms_value: [0, 1]
         while(True):
             img = sensor.snapshot()
             t = time.ticks_ms()
@@ -148,7 +151,7 @@ def main(anchors, labels = None, model_addr="/sd/m.kmodel", sensor_window=input_
 if __name__ == "__main__":
     try:
         # main(anchors = anchors, labels=labels, model_addr=0x300000, lcd_rotation=0)
-        main(anchors = anchors, labels=labels, model_addr="/sd/model-245984.kmodel")
+        main(anchors = anchors, labels=labels, model_addr="/sd/model-245385.kmodel")
     except Exception as e:
         sys.print_exception(e)
         lcd_show_except(e)
